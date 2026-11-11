@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_URL } from '../config.js';
+import { getTaskColumn } from '../utils/projectAlerts.js';
 import '../styles/Dashboard.css';
 import '../styles/ProjectDetail.css';
 import { 
@@ -85,16 +86,24 @@ const ProjectDetail = ({ onLogout, activeTab = 'detail', onNavigate, onBack, pro
               segment: String(segmentVal || '-'),
               planStart: String(planStartVal || '-'),
               planEnd: String(planEndVal || '-'),
-              rawStatus: String(row.computedStatus || row['Status'] || '').toLowerCase()
+              computedStatus: String(row.computedStatus || row['Status'] || '').trim(),
+              condition: String(row.condition || row['Condition'] || '').trim(),
+              rawStatus: String(row.computedStatus || row['Status'] || '').toLowerCase(),
+              task: String(taskVal || 'UAT')
             };
           });
 
           const grouped = {
-            planning: mappedTasks.filter(t => t.rawStatus.includes('plan') || t.rawStatus.includes('to do')),
-            onProgress: mappedTasks.filter(t => t.rawStatus.includes('going') || t.rawStatus.includes('progress') || t.rawStatus.includes('due soon')),
-            delayed: mappedTasks.filter(t => t.rawStatus.includes('delay')),
-            done: mappedTasks.filter(t => t.rawStatus.includes('complet') || t.rawStatus.includes('done'))
+            planning: [],
+            onProgress: [],
+            delayed: [],
+            done: []
           };
+
+          mappedTasks.forEach(task => {
+            const column = getTaskColumn(task);
+            grouped[column].push(task);
+          });
 
           setTasks(grouped);
         }

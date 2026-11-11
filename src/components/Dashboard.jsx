@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { API_URL } from '../config.js';
+import { buildProjectAlerts } from '../utils/projectAlerts.js';
 import '../styles/Dashboard.css';
 import '../styles/Chatbotanimations.css';
 import { RevealText, TypingDots } from './ChatParts';
@@ -268,11 +269,14 @@ const Dashboard = ({
           const formattedData = rawData.map((row, index) => {
             const computed = row.computedStatus || row['Status'] || 'On Going';
             const computedLower = String(computed).toLowerCase();
+            const condition = String(row.condition || row['Condition'] || 'On Track').trim();
+            const taskName = row['Task / Step'] || row['Task'] || row['task'] || 'Task';
+            const planEnd = row['Plan End'] || row['plannedEnd'] || row['Plan End'] || '-';
+            const daysRem = row.daysRemaining !== undefined ? Number(row.daysRemaining) : null;
             
             let statusType = 'ongoing-yellow'; 
             let displayStatus = computed;
             let dueText = null;
-            const daysRem = row.daysRemaining !== undefined ? Number(row.daysRemaining) : null;
 
             if (computedLower === 'delayed') {
               statusType = 'delayed';
@@ -301,13 +305,18 @@ const Dashboard = ({
               projectName: row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney + Project',
               title: row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney + Project',
               priority: row['Priority'] || row['priority'] || '1',
-              plannedEnd: row['Plan End'] || row['Planned End'] || '28/09/2026',
+              plannedEnd: planEnd,
               actualEnd: row['Actual End'] || '-', 
               status: displayStatus,
-              statusType: statusType, 
+              statusType: statusType,
               due: dueText,
               type: isNonComm ? 'non-commercial' : 'commercial',
               pm: row['PM'] || row['PIC'] || 'AL GANTENG',
+              computedStatus: computed,
+              condition: condition,
+              daysRemaining: daysRem,
+              task: taskName,
+              planEnd: planEnd,
               rawData: row
             };
           });
@@ -338,7 +347,7 @@ const Dashboard = ({
           setCommercialProjects(highlightOnly.filter(item => item.type === 'commercial'));
           setNonCommercialProjects(highlightOnly.filter(item => item.type === 'non-commercial'));
 
-          generateNotificationsFromData(highlightOnly);
+          generateNotificationsFromData(formattedData);
         }
       } catch (err) {
         console.error('Gagal memuat data dari Backend:', err);
@@ -354,20 +363,17 @@ const Dashboard = ({
   }, [startDate, endDate, onLogout]);
 
   const generateNotificationsFromData = (dataList) => {
-    if (!dataList || dataList.length === 0) return;
-    const criticalProjects = dataList.filter(p => p.statusType === 'ongoing-orange' || p.statusType === 'delayed');
-    
-    if (criticalProjects.length === 0) {
-      setNotifications([{ title: '✅ All Clear', desc: 'Tidak ada project Highlight yang mendekati deadline.' }]);
+    if (!dataList || dataList.length === 0) {
+      setNotifications([{ title: '✅ All Clear', desc: 'Tidak ada project yang terlambat atau mendekati deadline.' }]);
       return;
     }
 
-    const notifItems = criticalProjects.slice(0, 4).map(p => {
-      if (p.statusType === 'delayed') {
-        return { title: `🚨 Delayed: ${p.title}`, desc: `${p.title} telah melewati batas Planned End!` };
-      }
-      return { title: `⏳ Due Soon: ${p.title}`, desc: `Sisa waktu ${p.due} untuk menyelesaikan project.` };
-    });
+    const notifItems = buildProjectAlerts(dataList).slice(0, 4);
+
+    if (notifItems.length === 0) {
+      setNotifications([{ title: '✅ All Clear', desc: 'Tidak ada project yang terlambat atau mendekati deadline.' }]);
+      return;
+    }
 
     setNotifications(notifItems);
   };
